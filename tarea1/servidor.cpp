@@ -3,62 +3,71 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <thread> // Agregar esta línea para usar std::thread
+#include <thread>
+#include <errno.h>
 
 #define PORT 7777
 #define FILAS 6
 #define COLUMNAS 7
 
-// Declaración de funciones
 bool verificarVictoria(char tablero[FILAS][COLUMNAS], char ficha);
 void enviarTablero(int client_socket, char tablero[FILAS][COLUMNAS]);
 
-
-
 void recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS]) {
-    // Recibir coordenadas del movimiento del cliente
+    if (client_socket < 0) {
+        std::cerr << "Socket inválido al inicio de recibirMovimiento" << std::endl;
+        return;
+    }
+
     char buffer[256];
-    int bytes_recibidos = recv(client_socket, buffer, sizeof(buffer), 0);
-    if (bytes_recibidos <= 0) {
-        std::cerr << "Error al recibir las coordenadas del movimiento" << std::endl;
+    memset(buffer, 0, sizeof(buffer));
+    int bytes_recibidos = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+
+    if (bytes_recibidos < 0) {
+        std::cerr << "Error al recibir las coordenadas del movimiento: " << errno << std::endl;
+        if (errno == EBADF) {
+            std::cerr << "Descriptor de archivo inválido (EBADF)" << std::endl;
+        } else if (errno == ECONNRESET) {
+            std::cerr << "Conexión restablecida por el cliente (ECONNRESET)" << std::endl;
+        }
+        close(client_socket);
+        return;
+    } else if (bytes_recibidos == 0) {
+        std::cerr << "Conexión cerrada por el cliente" << std::endl;
         close(client_socket);
         return;
     }
 
-    // Interpretar las coordenadas recibidas
+    buffer[bytes_recibidos] = '\0';
+    std::cout << "Datos recibidos: " << buffer << std::endl;
+
     int fila, columna;
     if (sscanf(buffer, "%d %d", &fila, &columna) != 2 || 
         fila < 0 || fila >= FILAS || 
         columna < 0 || columna >= COLUMNAS) {
-        // Enviar mensaje de error al cliente
         const char* mensaje_error = "Movimiento inválido. Introduce coordenadas válidas.\n";
         send(client_socket, mensaje_error, strlen(mensaje_error), 0);
+        std::cerr << "Error: Coordenadas inválidas recibidas" << std::endl;
         return;
     }
 
-    // Verificar si la casilla está vacía
     if (tablero[fila][columna] != ' ') {
-        // Enviar mensaje de error al cliente
         const char* mensaje_error = "La casilla seleccionada ya está ocupada. Introduce otras coordenadas.\n";
         send(client_socket, mensaje_error, strlen(mensaje_error), 0);
+        std::cerr << "Error: Casilla seleccionada ya ocupada" << std::endl;
         return;
     }
 
-    // Actualizar el tablero con el movimiento del cliente
-    tablero[fila][columna] = 'X'; // Suponiendo que 'X' representa al jugador
+    tablero[fila][columna] = 'X';
 
-    // Verificar si se ha cumplido una condición de victoria
-    bool victoria = verificarVictoria(tablero, 'X'); // Suponiendo que 'X' representa al jugador
+    bool victoria = verificarVictoria(tablero, 'X');
     if (victoria) {
-        // Enviar mensaje de victoria al cliente
         const char* mensaje_victoria = "¡Has ganado!\n";
         send(client_socket, mensaje_victoria, strlen(mensaje_victoria), 0);
-        // Cerrar conexión con el cliente
         close(client_socket);
         return;
     }
 
-    // Verificar si hay un empate
     bool empate = true;
     for (int col = 0; col < COLUMNAS; ++col) {
         if (tablero[0][col] == ' ') {
@@ -67,40 +76,31 @@ void recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS]) {
         }
     }
     if (empate) {
-        // Enviar mensaje de empate al cliente
         const char* mensaje_empate = "¡Empate! El tablero está lleno y nadie ha ganado.\n";
         send(client_socket, mensaje_empate, strlen(mensaje_empate), 0);
-        // Cerrar conexión con el cliente
         close(client_socket);
         return;
     }
 
-    // Si no se ha cumplido una condición de victoria ni hay empate, enviar estado actualizado del tablero al cliente
     enviarTablero(client_socket, tablero);
- // envia el estado actualizado del tablero al cliente para que pueda ver el tablero después de su movimiento
 }
+
 void enviarTablero(int client_socket, char tablero[FILAS][COLUMNAS]) {
-    // Concatenar el tablero en una cadena de caracteres
     std::string tablero_str;
     for (int fila = 0; fila < FILAS; ++fila) {
         for (int col = 0; col < COLUMNAS; ++col) {
             tablero_str += tablero[fila][col];
             if (col < COLUMNAS - 1) {
-                tablero_str += ' '; // Separador entre columnas
+                tablero_str += ' ';
             }
         }
-        tablero_str += '\n'; // Salto de línea entre filas
+        tablero_str += '\n';
     }
 
-    // Enviar el tablero al cliente
     send(client_socket, tablero_str.c_str(), tablero_str.length(), 0);
 }
 
-
-// Verificar si se ha cumplido una condición de victoria
-// Devuelve true si hay cuatro fichas consecutivas en alguna dirección
 bool verificarVictoria(char tablero[FILAS][COLUMNAS], char ficha) {
-    // Verificar horizontalmente
     for (int fila = 0; fila < FILAS; ++fila) {
         for (int col = 0; col <= COLUMNAS - 4; ++col) {
             if (tablero[fila][col] == ficha &&
@@ -112,7 +112,6 @@ bool verificarVictoria(char tablero[FILAS][COLUMNAS], char ficha) {
         }
     }
 
-    // Verificar verticalmente
     for (int col = 0; col < COLUMNAS; ++col) {
         for (int fila = 0; fila <= FILAS - 4; ++fila) {
             if (tablero[fila][col] == ficha &&
@@ -124,7 +123,6 @@ bool verificarVictoria(char tablero[FILAS][COLUMNAS], char ficha) {
         }
     }
 
-    // Verificar diagonalmente (de izquierda a derecha)
     for (int fila = 0; fila <= FILAS - 4; ++fila) {
         for (int col = 0; col <= COLUMNAS - 4; ++col) {
             if (tablero[fila][col] == ficha &&
@@ -136,7 +134,6 @@ bool verificarVictoria(char tablero[FILAS][COLUMNAS], char ficha) {
         }
     }
 
-    // Verificar diagonalmente (de derecha a izquierda)
     for (int fila = 0; fila <= FILAS - 4; ++fila) {
         for (int col = COLUMNAS - 1; col >= 3; --col) {
             if (tablero[fila][col] == ficha &&
@@ -148,37 +145,19 @@ bool verificarVictoria(char tablero[FILAS][COLUMNAS], char ficha) {
         }
     }
 
-    return false; // No hay cuatro fichas consecutivas en ninguna dirección
+    return false;
 }
 
 void jugarPartida(int client_socket) {
-    char tablero[FILAS][COLUMNAS] = {{' ', ' ', ' ', ' ', ' ', ' ', ' '},
+    char tablero[FILAS][COLUMNAS] = { {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                                      {' ', ' ', ' ', ' ', ' ', ' ', ' '}};
-    bool game_over = false;
-    bool turno_jugador = true; // Variable para alternar entre turnos
+                                      {' ', ' ', ' ', ' ', ' ', ' ', ' '} };
 
-    // Lógica del juego Cuatro en Línea
-    while (!game_over) {
-        // Mensaje para indicar de quién es el turno
-        if (turno_jugador) {
-            const char* mensaje_turno = "Es tu turno. Elige una columna.\n";
-            send(client_socket, mensaje_turno, strlen(mensaje_turno), 0);
-        } else {
-            const char* mensaje_turno = "Espera tu turno. El oponente está moviendo.\n";
-            send(client_socket, mensaje_turno, strlen(mensaje_turno), 0);
-        }
-
-        // Lógica para recibir movimientos del cliente y actualizar el tablero
-        // Supongamos que el cliente envía un número de fial y columna como movimiento
-        int columna; // Aquí debes recibir el movimiento del cliente (puedes usar la función recv)
+    while (true) {
         recibirMovimiento(client_socket, tablero);
-
-        // Cambiar el turno para el próximo movimiento
-        turno_jugador = !turno_jugador;
     }
 }
 
@@ -188,15 +167,13 @@ int main() {
     int opt = 1;
     int addrlen = sizeof(address);
 
-    // Crear socket del servidor
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        std::cerr << "Error al crear el socket" << std::endl;
+        std::cerr << "Error al crear el socket del servidor" << std::endl;
         return -1;
     }
 
-    // Configurar opciones del socket
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-        std::cerr << "Error al configurar el socket" << std::endl;
+        std::cerr << "Error al configurar el socket del servidor" << std::endl;
         return -1;
     }
 
@@ -204,27 +181,40 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    // Asignar dirección al socket
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        std::cerr << "Error al asignar la dirección al socket" << std::endl;
+        std::cerr << "Error al enlazar el socket del servidor" << std::endl;
         return -1;
     }
 
-    // Esperar por conexiones entrantes
     if (listen(server_fd, 3) < 0) {
-        std::cerr << "Error al esperar por conexiones entrantes" << std::endl;
+        std::cerr << "Error al escuchar en el socket del servidor" << std::endl;
         return -1;
     }
+
     std::cout << "Servidor iniciado. Esperando conexiones entrantes..." << std::endl;
 
     while (true) {
-        // Aceptar nueva conexión
         if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
             std::cerr << "Error al aceptar la conexión" << std::endl;
-            return -1;
+            continue;  // Continuar esperando nuevas conexiones en caso de error
         }
 
-        // Crear un hilo para cada partida
+        char buffer[256];
+        memset(buffer, 0, sizeof(buffer));
+        int bytes_recibidos = recv(new_socket, buffer, sizeof(buffer) - 1, 0);
+        if (bytes_recibidos < 0) {
+            std::cerr << "Error al recibir mensaje de confirmación del cliente" << std::endl;
+            close(new_socket);
+            continue;
+        }
+        buffer[bytes_recibidos] = '\0';
+
+        if (strcmp(buffer, "Listo para jugar") != 0) {
+            std::cerr << "Mensaje de confirmación incorrecto recibido del cliente" << std::endl;
+            close(new_socket);
+            continue;
+        }
+
         std::thread(jugarPartida, new_socket).detach();
     }
 
