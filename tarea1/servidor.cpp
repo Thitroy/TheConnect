@@ -98,13 +98,16 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
 
     bool turno_cliente = (rand() % 2 == 0); // Seleccionar aleatoriamente quién empieza
 
+    // Se decide quién inicia
     if (turno_cliente) {
         const char* mensaje_inicio = "Inicia el cliente.\n";
         send(client_socket, mensaje_inicio, strlen(mensaje_inicio), 0);
+        cout << "Juego [" << client_ip << ":" << client_port << "]: inicia juego el cliente." << endl; // Mensaje en la terminal del servidor
         enviarTablero(client_socket, tablero); // Enviar el tablero vacío
     } else {
         const char* mensaje_inicio = "Inicia el servidor.\n";
         send(client_socket, mensaje_inicio, strlen(mensaje_inicio), 0);
+        cout << "Juego [" << client_ip << ":" << client_port << "]: inicia juego el servidor." << endl; // Mensaje en la terminal del servidor
         hacerMovimientoServidor(client_socket, tablero); // Movimiento inicial del servidor
         enviarTablero(client_socket, tablero); // Enviar el tablero después del primer movimiento del servidor
         turno_cliente = true; // Cambiar el turno al cliente después del primer movimiento del servidor
@@ -184,7 +187,6 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
         }
 
         buffer[bytes_recibidos] = '\0';
-        cout << "Datos recibidos: " << buffer << endl;
 
         if (sscanf(buffer, "%d", &columna) != 1 || columna < 1 || columna > COLUMNAS) {
             const char* mensaje_error = "Movimiento inválido. Introduce una columna válida (1-7).\n";
