@@ -53,8 +53,6 @@ bool Servidor::iniciar() {
 }
 
 void Servidor::esperarConexiones() {
-    int addrlen = sizeof(address_);
-
     cout << "Servidor iniciado. Esperando conexiones entrantes..." << endl;
 
     while (true) {
@@ -105,7 +103,7 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
                 if (verificarVictoria(tablero, 'C')) {
                     enviarTableroConMensaje(client_socket, tablero, "Gana el Cliente...\nFin del juego.\n");
                     close(client_socket);
-                    throw std::runtime_error("Victoria del jugador");
+                    break;
                 }
                 turno_cliente = false; // Pasar el turno al servidor
             } else {
@@ -114,7 +112,7 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
                 if (verificarVictoria(tablero, 'S')) {
                     enviarTableroConMensaje(client_socket, tablero, "Gana el Servidor...\nFin del juego.\n");
                     close(client_socket);
-                    throw std::runtime_error("Victoria del servidor");
+                    break;
                 }
                 turno_cliente = true; // Pasar el turno al cliente
             }
@@ -130,9 +128,10 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
             if (empate) {
                 enviarTableroConMensaje(client_socket, tablero, "¡Empate! El tablero está lleno y nadie ha ganado.\nFin del juego.\n");
                 close(client_socket);
-                throw std::runtime_error("Empate en el juego");
+                break;
             }
 
+            // Actualizar el tablero después de cada turno
             enviarTablero(client_socket, tablero);
         }
     } catch (const std::runtime_error& e) {
@@ -217,21 +216,8 @@ void Servidor::enviarTablero(int client_socket, char tablero[FILAS][COLUMNAS]) {
 }
 
 void Servidor::enviarTableroConMensaje(int client_socket, char tablero[FILAS][COLUMNAS], const char* mensaje) {
-    string tablero_str = "TABLERO\n";
-    for (int fila = 0; fila < FILAS; ++fila) {
-        tablero_str += to_string(fila + 1) + " "; // Agregar el número de fila a la izquierda
-        for (int col = 0; col < COLUMNAS; ++col) {
-            tablero_str += tablero[fila][col];
-            if (col < COLUMNAS - 1) {
-                tablero_str += ' ';
-            }
-        }
-        tablero_str += '\n';
-    }
-    tablero_str += "  -------------\n"; // Alineación del borde inferior
-    tablero_str += "  1 2 3 4 5 6 7\n"; // Agregar un espacio adicional para alinear con los números de fila
-    tablero_str += mensaje; // Agregar el mensaje de victoria o empate
-    send(client_socket, tablero_str.c_str(), tablero_str.length(), 0);
+    enviarTablero(client_socket, tablero); // Enviar el tablero primero
+    send(client_socket, mensaje, strlen(mensaje), 0); // Enviar el mensaje de victoria o empate
 }
 
 bool Servidor::verificarVictoria(char tablero[FILAS][COLUMNAS], char ficha) {

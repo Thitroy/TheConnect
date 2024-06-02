@@ -52,6 +52,7 @@ bool Cliente::enviarMensaje(const string& mensaje) {
 
 bool Cliente::recibirMensaje(string& respuesta) {
     char buffer[1024];
+    memset(buffer, 0, sizeof(buffer)); // Limpiar el buffer antes de recibir datos
     int bytes_recibidos = recv(client_socket_, buffer, sizeof(buffer) - 1, 0);
     if (bytes_recibidos < 0) {
         cerr << "Error al recibir datos del servidor" << endl;
