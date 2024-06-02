@@ -1,82 +1,189 @@
-#include <iostream>
-#include <cstring>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h> // Agregar esta línea para usar inet_pton
+#include "cliente.h" // Incluye la definición de la clase Cliente
+#include <iostream> // Incluye la biblioteca de entrada y salida estándar
+#include <cstring> // Incluye funciones para manipulación de cadenas de caracteres
+#include <unistd.h> // Incluye funciones para operaciones con archivos y directorios (por ejemplo, close)
+#include <sys/socket.h> // Incluye definiciones de la biblioteca de sockets
+#include <netinet/in.h> // Incluye estructuras de datos para manejar direcciones de red
+#include <arpa/inet.h> // Incluye funciones para manipular direcciones IP (por ejemplo, inet_pton)
 
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        std::cerr << "Uso: " << argv[0] << " <dirección IP del servidor> <puerto>" << std::endl;
-        return 1;
+using namespace std;
+
+// Constructor
+// Inicializa la IP del servidor, el puerto y el socket del cliente
+Cliente::Cliente(const string& server_ip, int port)
+    : server_ip_(server_ip), port_(port), client_socket_(-1) {
+}
+
+// Destructor
+// Cierra el socket del cliente si está abierto
+Cliente::~Cliente() {
+    if (client_socket_ != -1) {
+        close(client_socket_);
     }
-    const char* server_ip = argv[1];
-    int port = std::stoi(argv[2]);
+}
 
-    int client_socket;
-    struct sockaddr_in serv_addr;
-
-    // Crear socket del cliente
-    if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        std::cerr << "Error al crear el socket" << std::endl;
-        return -1;
+// Función para conectar el cliente al servidor
+bool Cliente::conectar() {
+    // Crear el socket
+    if ((client_socket_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        cerr << "Error al crear el socket" << endl;
+        return false;
     }
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(port);
+    // Configurar la dirección del servidor
+    sockaddr_in serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr)); // Inicializar la estructura con ceros
+    serv_addr.sin_family = AF_INET; // Familia de direcciones (IPv4)
+    serv_addr.sin_port = htons(port_); // Convertir el número de puerto a formato de red
 
-    // Convertir dirección IP de texto a binario
-    if (inet_pton(AF_INET, server_ip, &serv_addr.sin_addr) <= 0) {
-        std::cerr << "Dirección IP inválida" << std::endl;
-        close(client_socket);
-        return -1;
+    // Convertir la dirección IP del servidor de texto a binario
+    if (inet_pton(AF_INET, server_ip_.c_str(), &serv_addr.sin_addr) <= 0) {
+        cerr << "Dirección IP inválida" << endl;
+        return false;
     }
 
     // Conectar al servidor
-    if (connect(client_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        std::cerr << "Error al conectar al servidor" << std::endl;
-        close(client_socket);
-        return -1;
+    if (connect(client_socket_, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        cerr << "Error al conectar al servidor" << endl;
+        return false;
     }
 
-    // Enviar mensaje de confirmación al servidor
-    const char* mensaje_confirmacion = "Listo para jugar";
-    if (send(client_socket, mensaje_confirmacion, strlen(mensaje_confirmacion), 0) < 0) {
-        std::cerr << "Error al enviar mensaje de confirmación al servidor" << std::endl;
-        close(client_socket);
-        return -1;
-    }
+    return true; // Conexión exitosa
+}
 
-    // Obtener coordenadas del usuario
-    int fila, columna;
-    std::cout << "Introduce la fila y columna del movimiento (ejemplo: 2 3): ";
-    if (!(std::cin >> fila >> columna)) {
-        std::cerr << "Entrada inválida" << std::endl;
-        close(client_socket);
-        return -1;
+// Función para enviar un mensaje al servidor
+bool Cliente::enviarMensaje(const string& mensaje) {
+    cout << "Enviando mensaje: " << mensaje << endl;
+    if (send(client_socket_, mensaje.c_str(), mensaje.length(), 0) < 0) {
+        cerr << "Error al enviar mensaje al servidor" << endl;
+        return false;
     }
+    return true;
+}
 
-    // Enviar coordenadas al servidor
-    char buffer[256];
-    snprintf(buffer, sizeof(buffer), "%d %d", fila, columna);
-    if (send(client_socket, buffer, strlen(buffer), 0) < 0) {
-        std::cerr << "Error al enviar coordenadas al servidor" << std::endl;
-        close(client_socket);
-        return -1;
-    }
-
-    // Recibir respuesta del servidor
-    char respuesta[256];
-    int bytes_recibidos = recv(client_socket, respuesta, sizeof(respuesta) - 1, 0);
+// Función para recibir un mensaje del servidor
+bool Cliente::recibirMensaje(string& respuesta) {
+    char buffer[1024];
+    memset(buffer, 0, sizeof(buffer)); // Limpiar el buffer antes de recibir datos
+    int bytes_recibidos = recv(client_socket_, buffer, sizeof(buffer) - 1, 0);
     if (bytes_recibidos < 0) {
-        std::cerr << "Error al recibir datos del servidor" << std::endl;
-    } else {
-        respuesta[bytes_recibidos] = '\0';
-        std::cout << "Respuesta del servidor: " << respuesta << std::endl;
+        cerr << "Error al recibir datos del servidor" << endl;
+        return false;
     }
+    buffer[bytes_recibidos] = '\0';
+    respuesta = string(buffer);
+    cout << "Mensaje recibido: " << respuesta << endl;
+    return true;
+}
 
-    // Cerrar el socket
-    close(client_socket);
+// Función para limpiar la pantalla de la terminal
+void Cliente::limpiarPantalla() {
+    // Secuencias de escape ANSI para limpiar la terminal
+    cout << "\033[2J\033[1;1H";
+}
 
-    return 0;
+void Cliente::jugar() {
+    while (true) {
+        if (!conectar()) {
+            return;
+        }
+
+        string respuesta;
+        if (recibirMensaje(respuesta)) {
+            cout << respuesta << endl;
+        }
+
+        bool juego_terminado = false; // Variable para verificar si el juego ha terminado
+
+        while (!juego_terminado) {
+            limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
+            cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
+
+            if (respuesta.find("Fin del juego") != string::npos) {
+                juego_terminado = true; // Marcar que el juego ha terminado
+                break;
+            }
+
+            if (respuesta.find("Inicia el servidor") != string::npos) {
+                if (!recibirMensaje(respuesta)) {
+                    break;
+                }
+                limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero actualizado
+                cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
+
+                if (respuesta.find("Fin del juego") != string::npos) {
+                    juego_terminado = true; // Marcar que el juego ha terminado
+                    break;
+                }
+                continue; // Saltar la entrada del cliente porque es turno del servidor
+            }
+
+            int columna;
+            bool columna_llena = false;
+            string mensaje_error = "";
+            while (true) {
+                if (columna_llena) {
+                    // Limpiar el mensaje de error anterior
+                    cout << "\033[F\33[2K\r"; // Mover hacia arriba y limpiar la línea
+                }
+                cout << "Introduce la columna (1-7): ";
+                cin >> columna;
+
+                if (!enviarMensaje(to_string(columna))) {
+                    return;
+                }
+
+                if (!recibirMensaje(respuesta)) {
+                    return;
+                }
+
+                if (respuesta.find("La columna") == string::npos) {
+                    break;
+                }
+
+                // Mostrar el mensaje de error
+                mensaje_error = respuesta;
+                cout << mensaje_error << endl;
+                columna_llena = true;
+            }
+
+            limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero actualizado
+            cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
+
+            if (respuesta.find("Fin del juego") != string::npos) {
+                juego_terminado = true; // Marcar que el juego ha terminado
+                break;
+            }
+
+            // Esperar y recibir el tablero actualizado después del movimiento del servidor
+            if (!recibirMensaje(respuesta)) {
+                break;
+            }
+            limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero actualizado
+            cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
+
+            if (respuesta.find("Fin del juego") != string::npos) {
+                juego_terminado = true; // Marcar que el juego ha terminado
+                break;
+            }
+        }
+
+        close(client_socket_);  // Cerrar el socket después de terminar el juego
+
+        // Preguntar al usuario si desea jugar otra partida
+        char jugar_otra;
+        cout << "¿Desea jugar otra partida? (s/n): ";
+        cin >> jugar_otra;
+        if (jugar_otra != 's' && jugar_otra != 'S') {
+            break;
+        }
+    }
+}
+
+// Función para mostrar el tablero recibido del servidor
+void Cliente::mostrarTablero() {
+    string respuesta;
+    if (recibirMensaje(respuesta)) {
+        cout << respuesta << endl;
+    }
 }
