@@ -81,7 +81,7 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '} };
 
-    bool turno_cliente = true;//(rand() % 2 == 0); // Seleccionar aleatoriamente quién empieza
+    bool turno_cliente = (rand() % 2 == 0); // Seleccionar aleatoriamente quién empieza
 
     if (turno_cliente) {
         const char* mensaje_inicio = "Inicia el cliente.\n";
@@ -139,6 +139,9 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
     }
 }
 
+bool Servidor::columnaLlena(char tablero[FILAS][COLUMNAS], int columna) {
+    return tablero[0][columna] != ' ';
+}
 
 void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS], string client_ip, int client_port) {
     if (client_socket < 0) {
@@ -147,31 +150,42 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
     }
 
     char buffer[256];
-    memset(buffer, 0, sizeof(buffer));
-    int bytes_recibidos = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+    int columna = -1;
+    
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        int bytes_recibidos = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
 
-    if (bytes_recibidos < 0) {
-        cerr << "Error al recibir las coordenadas del movimiento: " << errno << endl;
-        close(client_socket);
-        throw std::runtime_error("Error al recibir datos");
-    } else if (bytes_recibidos == 0) {
-        cerr << "Conexión cerrada por el cliente" << endl;
-        close(client_socket);
-        throw std::runtime_error("Conexión cerrada por el cliente");
+        if (bytes_recibidos < 0) {
+            cerr << "Error al recibir las coordenadas del movimiento: " << errno << endl;
+            close(client_socket);
+            throw std::runtime_error("Error al recibir datos");
+        } else if (bytes_recibidos == 0) {
+            cerr << "Conexión cerrada por el cliente" << endl;
+            close(client_socket);
+            throw std::runtime_error("Conexión cerrada por el cliente");
+        }
+
+        buffer[bytes_recibidos] = '\0';
+        cout << "Datos recibidos: " << buffer << endl;
+
+        if (sscanf(buffer, "%d", &columna) != 1 || columna < 1 || columna > COLUMNAS) {
+            const char* mensaje_error = "Movimiento inválido. Introduce una columna válida (1-7).\n";
+            send(client_socket, mensaje_error, strlen(mensaje_error), 0);
+            cerr << "Error: Coordenadas inválidas recibidas" << endl;
+            continue;
+        }
+
+        columna--; // Ajustar a índice 0
+        if (tablero[0][columna] != ' ') {
+            string mensaje_error = "Juego [" + client_ip + ":" + to_string(client_port) + "]: La columna " + to_string(columna + 1) + " está llena. Introduce otra columna.\n";
+            send(client_socket, mensaje_error.c_str(), mensaje_error.length(), 0);
+            cerr << "Juego [" << client_ip << ":" << client_port << "]: Error: La columna " << columna + 1 << " está llena." << endl;
+            continue;
+        }
+        break; // Salir del bucle cuando se recibe un movimiento válido
     }
 
-    buffer[bytes_recibidos] = '\0';
-    cout << "Datos recibidos: " << buffer << endl;
-
-    int columna;
-    if (sscanf(buffer, "%d", &columna) != 1 || columna < 1 || columna > COLUMNAS) {
-        const char* mensaje_error = "Movimiento inválido. Introduce una columna válida (1-7).\n";
-        send(client_socket, mensaje_error, strlen(mensaje_error), 0);
-        cerr << "Error: Coordenadas inválidas recibidas" << endl;
-        return;
-    }
-
-    columna--; // Ajustar a índice 0
     for (int fila = FILAS - 1; fila >= 0; --fila) {
         if (tablero[fila][columna] == ' ') {
             tablero[fila][columna] = 'C';
@@ -181,6 +195,7 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
 
     cout << "Juego [" << client_ip << ":" << client_port << "]: cliente juega columna " << columna + 1 << "." << endl;
 }
+
 
 void Servidor::hacerMovimientoServidor(int client_socket, char tablero[FILAS][COLUMNAS]) {
     int columna;

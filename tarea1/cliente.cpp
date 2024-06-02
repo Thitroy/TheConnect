@@ -81,17 +81,8 @@ void Cliente::jugar() {
     bool juego_terminado = false; // Variable para verificar si el juego ha terminado
 
     while (!juego_terminado) {
-        if (respuesta.find("Inicia el cliente") != string::npos) {
-            limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero vacío
-            cout << respuesta << endl;  // Mostrar el mensaje de inicio
-            if (!recibirMensaje(respuesta)) { // Recibir y mostrar el tablero vacío
-                break;
-            }
-            cout << respuesta << endl;  // Mostrar el tablero vacío
-        } else {
-            limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
-            cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
-        }
+        limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
+        cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
 
         if (respuesta.find("Fin del juego") != string::npos) {
             juego_terminado = true; // Marcar que el juego ha terminado
@@ -112,16 +103,33 @@ void Cliente::jugar() {
             continue; // Saltar la entrada del cliente porque es turno del servidor
         }
 
-        cout << "Introduce la columna (1-7): ";
         int columna;
-        cin >> columna;
+        bool columna_llena = false;
+        string mensaje_error = "";
+        while (true) {
+            if (columna_llena) {
+                // Limpiar el mensaje de error anterior
+                cout << "\033[F\33[2K\r"; // Mover hacia arriba y limpiar la línea
+            }
+            cout << "Introduce la columna (1-7): ";
+            cin >> columna;
 
-        if (!enviarMensaje(to_string(columna))) {
-            break;
-        }
+            if (!enviarMensaje(to_string(columna))) {
+                return;
+            }
 
-        if (!recibirMensaje(respuesta)) {
-            break;
+            if (!recibirMensaje(respuesta)) {
+                return;
+            }
+
+            if (respuesta.find("La columna") == string::npos) {
+                break;
+            }
+
+            // Mostrar el mensaje de error
+            mensaje_error = respuesta;
+            cout << mensaje_error << endl;
+            columna_llena = true;
         }
 
         limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero actualizado
@@ -147,6 +155,7 @@ void Cliente::jugar() {
 
     close(client_socket_);  // Cerrar el socket después de terminar el juego
 }
+
 
 void Cliente::mostrarTablero() {
     string respuesta;

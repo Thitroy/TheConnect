@@ -26,6 +26,8 @@ private:
     void enviarTablero(int client_socket, char tablero[FILAS][COLUMNAS]);
     void enviarTableroConMensaje(int client_socket, char tablero[FILAS][COLUMNAS], const char* mensaje);
     bool verificarVictoria(char tablero[FILAS][COLUMNAS], char ficha);
+    bool columnaLlena(char tablero[FILAS][COLUMNAS], int columna);
+
 };
 
 #endif // SERVIDOR_H
