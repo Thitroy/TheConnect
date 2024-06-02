@@ -3,22 +3,22 @@
 
 #include <string>
 
-using namespace std;
-
 class Cliente {
 public:
-    Cliente(const string& server_ip, int port);
-    ~Cliente(); // Destructor
+    Cliente(const std::string& server_ip, int port);
+    ~Cliente();
 
     bool conectar();
-    bool enviarMensaje(const string& mensaje);
-    bool recibirMensaje(string& respuesta);
+    bool enviarMensaje(const std::string& mensaje);
+    bool recibirMensaje(std::string& respuesta);
     void jugar();
 
 private:
-    string server_ip_;
+    std::string server_ip_;
     int port_;
     int client_socket_;
+
+    void mostrarTablero();
 };
 
 #endif // CLIENTE_H

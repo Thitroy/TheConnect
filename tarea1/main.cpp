@@ -9,7 +9,7 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
         cerr << "Uso: " << argv[0] << " <modo> [<dirección IP del servidor> <puerto>]" << endl;
         cerr << "Modos: " << endl;
-        cerr << "  servidor - Iniciar el servidor" << endl;
+        cerr << "  servidor <puerto> - Iniciar el servidor" << endl;
         cerr << "  cliente <dirección IP del servidor> <puerto> - Iniciar el cliente" << endl;
         return 1;
     }
@@ -17,7 +17,12 @@ int main(int argc, char *argv[]) {
     string modo = argv[1];
 
     if (modo == "servidor") {
-        Servidor servidor;
+        if (argc != 3) {
+            cerr << "Uso: " << argv[0] << " servidor <puerto>" << endl;
+            return 1;
+        }
+        int port = stoi(argv[2]);
+        Servidor servidor(port);
         if (!servidor.iniciar()) {
             cerr << "Error al iniciar el servidor" << endl;
             return -1;
@@ -41,3 +46,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
