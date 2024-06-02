@@ -74,6 +74,7 @@ void Servidor::esperarConexiones() {
 }
 
 void Servidor::jugarPartida(int client_socket, string client_ip, int client_port) {
+    // Reiniciar el tablero y las variables de estado al comenzar una nueva partida
     char tablero[FILAS][COLUMNAS] = { {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '},
@@ -138,7 +139,6 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
         close(client_socket);
     }
 }
-
 bool Servidor::columnaLlena(char tablero[FILAS][COLUMNAS], int columna) {
     return tablero[0][columna] != ' ';
 }
@@ -151,7 +151,7 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
 
     char buffer[256];
     int columna = -1;
-    
+
     while (true) {
         memset(buffer, 0, sizeof(buffer));
         int bytes_recibidos = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
@@ -195,7 +195,6 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
 
     cout << "Juego [" << client_ip << ":" << client_port << "]: cliente juega columna " << columna + 1 << "." << endl;
 }
-
 
 void Servidor::hacerMovimientoServidor(int client_socket, char tablero[FILAS][COLUMNAS]) {
     int columna;
