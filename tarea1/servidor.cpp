@@ -81,16 +81,17 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '} };
 
-    bool turno_cliente = (rand() % 2 == 0); // Seleccionar aleatoriamente quién empieza
+    bool turno_cliente = true;//(rand() % 2 == 0); // Seleccionar aleatoriamente quién empieza
 
     if (turno_cliente) {
         const char* mensaje_inicio = "Inicia el cliente.\n";
         send(client_socket, mensaje_inicio, strlen(mensaje_inicio), 0);
+        enviarTablero(client_socket, tablero); // Enviar el tablero vacío
     } else {
         const char* mensaje_inicio = "Inicia el servidor.\n";
         send(client_socket, mensaje_inicio, strlen(mensaje_inicio), 0);
         hacerMovimientoServidor(client_socket, tablero); // Movimiento inicial del servidor
-        enviarTablero(client_socket, tablero);
+        enviarTablero(client_socket, tablero); // Enviar el tablero después del primer movimiento del servidor
         turno_cliente = true; // Cambiar el turno al cliente después del primer movimiento del servidor
     }
 
@@ -98,13 +99,13 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
         while (true) {
             if (turno_cliente) {
                 cout << "Juego [" << client_ip << ":" << client_port << "]: turno del cliente." << endl;
-                enviarTablero(client_socket, tablero);
                 recibirMovimiento(client_socket, tablero, client_ip, client_port);
                 if (verificarVictoria(tablero, 'C')) {
                     enviarTableroConMensaje(client_socket, tablero, "Gana el Cliente...\nFin del juego.\n");
                     close(client_socket);
-                    break;
+                    throw std::runtime_error("Victoria del jugador");
                 }
+                enviarTablero(client_socket, tablero); // Enviar el tablero actualizado después del movimiento del cliente
                 turno_cliente = false; // Pasar el turno al servidor
             } else {
                 cout << "Juego [" << client_ip << ":" << client_port << "]: turno del servidor." << endl;
@@ -112,8 +113,9 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
                 if (verificarVictoria(tablero, 'S')) {
                     enviarTableroConMensaje(client_socket, tablero, "Gana el Servidor...\nFin del juego.\n");
                     close(client_socket);
-                    break;
+                    throw std::runtime_error("Victoria del servidor");
                 }
+                enviarTablero(client_socket, tablero); // Enviar el tablero actualizado después del movimiento del servidor
                 turno_cliente = true; // Pasar el turno al cliente
             }
 
@@ -128,17 +130,15 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
             if (empate) {
                 enviarTableroConMensaje(client_socket, tablero, "¡Empate! El tablero está lleno y nadie ha ganado.\nFin del juego.\n");
                 close(client_socket);
-                break;
+                throw std::runtime_error("Empate en el juego");
             }
-
-            // Actualizar el tablero después de cada turno
-            enviarTablero(client_socket, tablero);
         }
     } catch (const std::runtime_error& e) {
         cerr << "Juego [" << client_ip << ":" << client_port << "] terminado: " << e.what() << endl;
         close(client_socket);
     }
 }
+
 
 void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS], string client_ip, int client_port) {
     if (client_socket < 0) {

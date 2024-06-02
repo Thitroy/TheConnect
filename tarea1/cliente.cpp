@@ -53,7 +53,7 @@ bool Cliente::enviarMensaje(const string& mensaje) {
 bool Cliente::recibirMensaje(string& respuesta) {
     char buffer[1024];
     memset(buffer, 0, sizeof(buffer)); // Limpiar el buffer antes de recibir datos
-    int bytes_recibidos = recv(client_socket_, buffer, sizeof(buffer) - 1, 0);
+    int bytes_recibidos = recv(client_socket_, buffer, sizeof(buffer) - 1, 0);  // Cambiado a client_socket_
     if (bytes_recibidos < 0) {
         cerr << "Error al recibir datos del servidor" << endl;
         return false;
@@ -81,12 +81,35 @@ void Cliente::jugar() {
     bool juego_terminado = false; // Variable para verificar si el juego ha terminado
 
     while (!juego_terminado) {
-        limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
-        mostrarTablero();
+        if (respuesta.find("Inicia el cliente") != string::npos) {
+            limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero vacío
+            cout << respuesta << endl;  // Mostrar el mensaje de inicio
+            if (!recibirMensaje(respuesta)) { // Recibir y mostrar el tablero vacío
+                break;
+            }
+            cout << respuesta << endl;  // Mostrar el tablero vacío
+        } else {
+            limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
+            cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
+        }
 
         if (respuesta.find("Fin del juego") != string::npos) {
             juego_terminado = true; // Marcar que el juego ha terminado
             break;
+        }
+
+        if (respuesta.find("Inicia el servidor") != string::npos) {
+            if (!recibirMensaje(respuesta)) {
+                break;
+            }
+            limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero actualizado
+            cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
+
+            if (respuesta.find("Fin del juego") != string::npos) {
+                juego_terminado = true; // Marcar que el juego ha terminado
+                break;
+            }
+            continue; // Saltar la entrada del cliente porque es turno del servidor
         }
 
         cout << "Introduce la columna (1-7): ";
@@ -101,8 +124,8 @@ void Cliente::jugar() {
             break;
         }
 
-        limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
-        cout << respuesta << endl;
+        limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero actualizado
+        cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
 
         if (respuesta.find("Fin del juego") != string::npos) {
             juego_terminado = true; // Marcar que el juego ha terminado
@@ -113,8 +136,8 @@ void Cliente::jugar() {
         if (!recibirMensaje(respuesta)) {
             break;
         }
-        limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
-        cout << respuesta << endl;
+        limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero actualizado
+        cout << respuesta << endl;  // Mostrar el tablero y cualquier mensaje recibido
 
         if (respuesta.find("Fin del juego") != string::npos) {
             juego_terminado = true; // Marcar que el juego ha terminado
