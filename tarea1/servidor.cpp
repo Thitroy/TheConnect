@@ -1,4 +1,4 @@
-#include "Servidor.h"
+#include "servidor.h"
 #include <iostream>
 #include <cstring>
 #include <unistd.h>
@@ -89,14 +89,20 @@ void Servidor::jugarPartida(int client_socket) {
                                       {' ', ' ', ' ', ' ', ' ', ' ', ' '} };
 
     while (true) {
-        recibirMovimiento(client_socket, tablero);
+        try {
+            recibirMovimiento(client_socket, tablero);
+        } catch (const std::runtime_error& e) {
+            cerr << "Juego terminado: " << e.what() << endl;
+            close(client_socket);
+            break;
+        }
     }
 }
 
 void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS]) {
     if (client_socket < 0) {
         cerr << "Socket inválido al inicio de recibirMovimiento" << endl;
-        return;
+        throw std::runtime_error("Socket inválido");
     }
 
     char buffer[256];
@@ -106,11 +112,11 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
     if (bytes_recibidos < 0) {
         cerr << "Error al recibir las coordenadas del movimiento: " << errno << endl;
         close(client_socket);
-        return;
+        throw std::runtime_error("Error al recibir datos");
     } else if (bytes_recibidos == 0) {
         cerr << "Conexión cerrada por el cliente" << endl;
         close(client_socket);
-        return;
+        throw std::runtime_error("Conexión cerrada por el cliente");
     }
 
     buffer[bytes_recibidos] = '\0';
@@ -139,7 +145,7 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
         const char* mensaje_victoria = "¡Has ganado!\n";
         send(client_socket, mensaje_victoria, strlen(mensaje_victoria), 0);
         close(client_socket);
-        return;
+        throw std::runtime_error("Victoria del jugador");
     }
 
     bool empate = true;
@@ -153,7 +159,7 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
         const char* mensaje_empate = "¡Empate! El tablero está lleno y nadie ha ganado.\n";
         send(client_socket, mensaje_empate, strlen(mensaje_empate), 0);
         close(client_socket);
-        return;
+        throw std::runtime_error("Empate en el juego");
     }
 
     enviarTablero(client_socket, tablero);
