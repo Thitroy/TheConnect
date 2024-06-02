@@ -18,6 +18,7 @@ private:
     int port_;
     int client_socket_;
 
+    void limpiarPantalla(); // Declarar la función limpiarPantalla
     void mostrarTablero();
 };
 

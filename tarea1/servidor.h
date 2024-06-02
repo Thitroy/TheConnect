@@ -24,6 +24,7 @@ private:
     void recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS], std::string client_ip, int client_port);
     void hacerMovimientoServidor(int client_socket, char tablero[FILAS][COLUMNAS]);
     void enviarTablero(int client_socket, char tablero[FILAS][COLUMNAS]);
+    void enviarTableroConMensaje(int client_socket, char tablero[FILAS][COLUMNAS], const char* mensaje);
     bool verificarVictoria(char tablero[FILAS][COLUMNAS], char ficha);
 };
 

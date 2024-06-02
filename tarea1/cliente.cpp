@@ -62,6 +62,11 @@ bool Cliente::recibirMensaje(string& respuesta) {
     return true;
 }
 
+void Cliente::limpiarPantalla() {
+    // Secuencias de escape ANSI para limpiar la terminal
+    cout << "\033[2J\033[1;1H";
+}
+
 void Cliente::jugar() {
     if (!conectar()) {
         return;
@@ -72,13 +77,19 @@ void Cliente::jugar() {
         cout << respuesta << endl;
     }
 
-    while (true) {
+    bool juego_terminado = false; // Variable para verificar si el juego ha terminado
+
+    while (!juego_terminado) {
+        limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
         mostrarTablero();
 
-        cout << "Leer columna, enviar al servidor y mostrar tablero con resultado." << endl;
+        if (respuesta.find("Fin del juego") != string::npos) {
+            juego_terminado = true; // Marcar que el juego ha terminado
+            break;
+        }
 
-        int columna;
         cout << "Introduce la columna (1-7): ";
+        int columna;
         cin >> columna;
 
         if (!enviarMensaje(to_string(columna))) {
@@ -88,14 +99,29 @@ void Cliente::jugar() {
         if (!recibirMensaje(respuesta)) {
             break;
         }
+
+        limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
         cout << respuesta << endl;
 
-        if (respuesta.find("Gana") != string::npos || respuesta.find("Empate") != string::npos) {
+        if (respuesta.find("Fin del juego") != string::npos) {
+            juego_terminado = true; // Marcar que el juego ha terminado
+            break;
+        }
+
+        // Esperar y recibir el tablero actualizado después del movimiento del servidor
+        if (!recibirMensaje(respuesta)) {
+            break;
+        }
+        limpiarPantalla();  // Limpiar la terminal antes de mostrar el tablero
+        cout << respuesta << endl;
+
+        if (respuesta.find("Fin del juego") != string::npos) {
+            juego_terminado = true; // Marcar que el juego ha terminado
             break;
         }
     }
 
-    cout << "Fin del juego." << endl;
+    close(client_socket_);  // Cerrar el socket después de terminar el juego
 }
 
 void Cliente::mostrarTablero() {

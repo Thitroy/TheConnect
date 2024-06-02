@@ -61,7 +61,7 @@ void Servidor::esperarConexiones() {
         int new_socket;
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
-        
+
         if ((new_socket = accept(server_fd_, (struct sockaddr *)&client_addr, &client_len)) < 0) {
             cerr << "Error al aceptar la conexión" << endl;
             continue;
@@ -91,20 +91,49 @@ void Servidor::jugarPartida(int client_socket, string client_ip, int client_port
     } else {
         const char* mensaje_inicio = "Inicia el servidor.\n";
         send(client_socket, mensaje_inicio, strlen(mensaje_inicio), 0);
+        hacerMovimientoServidor(client_socket, tablero); // Movimiento inicial del servidor
+        enviarTablero(client_socket, tablero);
+        turno_cliente = true; // Cambiar el turno al cliente después del primer movimiento del servidor
     }
-
-    enviarTablero(client_socket, tablero);
 
     try {
         while (true) {
             if (turno_cliente) {
                 cout << "Juego [" << client_ip << ":" << client_port << "]: turno del cliente." << endl;
+                enviarTablero(client_socket, tablero);
                 recibirMovimiento(client_socket, tablero, client_ip, client_port);
+                if (verificarVictoria(tablero, 'C')) {
+                    enviarTableroConMensaje(client_socket, tablero, "Gana el Cliente...\nFin del juego.\n");
+                    close(client_socket);
+                    throw std::runtime_error("Victoria del jugador");
+                }
+                turno_cliente = false; // Pasar el turno al servidor
             } else {
                 cout << "Juego [" << client_ip << ":" << client_port << "]: turno del servidor." << endl;
                 hacerMovimientoServidor(client_socket, tablero);
+                if (verificarVictoria(tablero, 'S')) {
+                    enviarTableroConMensaje(client_socket, tablero, "Gana el Servidor...\nFin del juego.\n");
+                    close(client_socket);
+                    throw std::runtime_error("Victoria del servidor");
+                }
+                turno_cliente = true; // Pasar el turno al cliente
             }
-            turno_cliente = !turno_cliente;
+
+            // Comprobar empate
+            bool empate = true;
+            for (int col = 0; col < COLUMNAS; ++col) {
+                if (tablero[0][col] == ' ') {
+                    empate = false;
+                    break;
+                }
+            }
+            if (empate) {
+                enviarTableroConMensaje(client_socket, tablero, "¡Empate! El tablero está lleno y nadie ha ganado.\nFin del juego.\n");
+                close(client_socket);
+                throw std::runtime_error("Empate en el juego");
+            }
+
+            enviarTablero(client_socket, tablero);
         }
     } catch (const std::runtime_error& e) {
         cerr << "Juego [" << client_ip << ":" << client_port << "] terminado: " << e.what() << endl;
@@ -136,13 +165,14 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
     cout << "Datos recibidos: " << buffer << endl;
 
     int columna;
-    if (sscanf(buffer, "%d", &columna) != 1 || columna < 0 || columna >= COLUMNAS) {
-        const char* mensaje_error = "Movimiento inválido. Introduce una columna válida.\n";
+    if (sscanf(buffer, "%d", &columna) != 1 || columna < 1 || columna > COLUMNAS) {
+        const char* mensaje_error = "Movimiento inválido. Introduce una columna válida (1-7).\n";
         send(client_socket, mensaje_error, strlen(mensaje_error), 0);
         cerr << "Error: Coordenadas inválidas recibidas" << endl;
         return;
     }
 
+    columna--; // Ajustar a índice 0
     for (int fila = FILAS - 1; fila >= 0; --fila) {
         if (tablero[fila][columna] == ' ') {
             tablero[fila][columna] = 'C';
@@ -150,32 +180,7 @@ void Servidor::recibirMovimiento(int client_socket, char tablero[FILAS][COLUMNAS
         }
     }
 
-    cout << "Juego [" << client_ip << ":" << client_port << "]: cliente juega columna " << columna << "." << endl;
-
-    if (verificarVictoria(tablero, 'C')) {
-        const char* mensaje_victoria = "¡Has ganado!\n";
-        send(client_socket, mensaje_victoria, strlen(mensaje_victoria), 0);
-        enviarTablero(client_socket, tablero);
-        close(client_socket);
-        throw std::runtime_error("Victoria del jugador");
-    }
-
-    bool empate = true;
-    for (int col = 0; col < COLUMNAS; ++col) {
-        if (tablero[0][col] == ' ') {
-            empate = false;
-            break;
-        }
-    }
-    if (empate) {
-        const char* mensaje_empate = "¡Empate! El tablero está lleno y nadie ha ganado.\n";
-        send(client_socket, mensaje_empate, strlen(mensaje_empate), 0);
-        enviarTablero(client_socket, tablero);
-        close(client_socket);
-        throw std::runtime_error("Empate en el juego");
-    }
-
-    enviarTablero(client_socket, tablero);
+    cout << "Juego [" << client_ip << ":" << client_port << "]: cliente juega columna " << columna + 1 << "." << endl;
 }
 
 void Servidor::hacerMovimientoServidor(int client_socket, char tablero[FILAS][COLUMNAS]) {
@@ -191,22 +196,13 @@ void Servidor::hacerMovimientoServidor(int client_socket, char tablero[FILAS][CO
         }
     }
 
-    cout << "Juego: servidor juega columna " << columna << "." << endl;
-
-    if (verificarVictoria(tablero, 'S')) {
-        const char* mensaje_victoria = "¡El servidor ha ganado!\n";
-        send(client_socket, mensaje_victoria, strlen(mensaje_victoria), 0);
-        enviarTablero(client_socket, tablero);
-        close(client_socket);
-        throw std::runtime_error("Victoria del servidor");
-    }
-
-    enviarTablero(client_socket, tablero);
+    cout << "Juego: servidor juega columna " << columna + 1 << "." << endl;
 }
 
 void Servidor::enviarTablero(int client_socket, char tablero[FILAS][COLUMNAS]) {
     string tablero_str = "TABLERO\n";
     for (int fila = 0; fila < FILAS; ++fila) {
+        tablero_str += to_string(fila + 1) + " "; // Agregar el número de fila a la izquierda
         for (int col = 0; col < COLUMNAS; ++col) {
             tablero_str += tablero[fila][col];
             if (col < COLUMNAS - 1) {
@@ -215,8 +211,26 @@ void Servidor::enviarTablero(int client_socket, char tablero[FILAS][COLUMNAS]) {
         }
         tablero_str += '\n';
     }
-    tablero_str += "-------------\n";
-    tablero_str += " 1 2 3 4 5 6 7\n";
+    tablero_str += "  -------------\n"; // Alineación del borde inferior
+    tablero_str += "  1 2 3 4 5 6 7\n"; // Agregar un espacio adicional para alinear con los números de fila
+    send(client_socket, tablero_str.c_str(), tablero_str.length(), 0);
+}
+
+void Servidor::enviarTableroConMensaje(int client_socket, char tablero[FILAS][COLUMNAS], const char* mensaje) {
+    string tablero_str = "TABLERO\n";
+    for (int fila = 0; fila < FILAS; ++fila) {
+        tablero_str += to_string(fila + 1) + " "; // Agregar el número de fila a la izquierda
+        for (int col = 0; col < COLUMNAS; ++col) {
+            tablero_str += tablero[fila][col];
+            if (col < COLUMNAS - 1) {
+                tablero_str += ' ';
+            }
+        }
+        tablero_str += '\n';
+    }
+    tablero_str += "  -------------\n"; // Alineación del borde inferior
+    tablero_str += "  1 2 3 4 5 6 7\n"; // Agregar un espacio adicional para alinear con los números de fila
+    tablero_str += mensaje; // Agregar el mensaje de victoria o empate
     send(client_socket, tablero_str.c_str(), tablero_str.length(), 0);
 }
 
